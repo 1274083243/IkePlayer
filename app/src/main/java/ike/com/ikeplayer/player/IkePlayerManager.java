@@ -221,7 +221,7 @@ public class IkePlayerManager implements IMediaPlayer.OnCompletionListener,
         }
         if (mediaPlayer != null && disPlay.isValid()) {
             mediaPlayer.setSurface(disPlay);
-            if (listener != null && current_state == STATE_PLAYING) {
+            if (listener != null && (current_state ==STATE_PLAYING ||current_state==STATE_PAUSE)) {
                 listener.resumeProgressUpdate();
             }
         }

@@ -15,7 +15,7 @@
         android:src="@drawable/video_play_normal"
         />
     <LinearLayout
-        android:visibility="visible"
+        android:visibility="invisible"
         android:id="@+id/ll_controller_container"
         android:layout_width="match_parent"
         android:layout_height="40dp"

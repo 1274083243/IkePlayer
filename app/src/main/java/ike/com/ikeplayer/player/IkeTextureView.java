@@ -17,7 +17,7 @@ public class IkeTextureView extends TextureView {
     private String Tag = "IkeTextureView";
     private int videoHight;//视频的高
     private int videoWidth;//视频的宽
-    private boolean isFull=true;
+    private boolean isFull = true;
     private int widthSpecSize;
     private int heightSpecSize;
 
@@ -37,17 +37,11 @@ public class IkeTextureView extends TextureView {
     protected void onMeasure(int widthMeasureSpec, int heightMeasureSpec) {
         int lastWidth = 0;//最终的宽
         int lastHeight = 0;//最终的高
-
-            videoHight = IkePlayerManager.getInstance().vedioHeight;
-            videoWidth = IkePlayerManager.getInstance().vedioWidth;
-            Log.e(Tag,"videoHight:"+videoHight+"videoWidth:"+videoWidth);
-
-
-
+        videoHight = IkePlayerManager.getInstance().vedioHeight;
+        videoWidth = IkePlayerManager.getInstance().vedioWidth;
         if (videoHight != 0 && videoWidth != 0) {
-             widthSpecSize = MeasureSpec.getSize(widthMeasureSpec);
+            widthSpecSize = MeasureSpec.getSize(widthMeasureSpec);
             heightSpecSize = MeasureSpec.getSize(heightMeasureSpec);
-            Log.e(Tag,"widthSpecSize:"+widthSpecSize+"heightSpecSize:"+heightSpecSize);
             //进行横竖屏幕的适配
             float widthPersent = videoWidth * 1.0f / widthSpecSize;
             float heightPersent = videoHight * 1.0f / heightSpecSize;
@@ -58,13 +52,12 @@ public class IkeTextureView extends TextureView {
             //视屏的宽与控件宽的比 大于 视屏的高与控件高的比,进行高度比例压缩
             if (widthPersent > heightPersent) {
 
-                lastHeight = (int) (lastWidth * 1.0f * (videoHight *1.0f/ videoWidth));
+                lastHeight = (int) (lastWidth * 1.0f * (videoHight * 1.0f / videoWidth));
             } else {
 
-                lastWidth = (int) (lastHeight * 1.0f * (videoWidth *1.0f/ videoHight));
+                lastWidth = (int) (lastHeight * 1.0f * (videoWidth * 1.0f / videoHight));
             }
         }
-        Log.e(Tag,"lastWidth:"+lastWidth+"lastHeight:"+lastHeight);
         setMeasuredDimension(lastWidth, lastHeight);
     }
 }

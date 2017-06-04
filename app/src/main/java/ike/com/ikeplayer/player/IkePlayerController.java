@@ -4,6 +4,7 @@ import android.animation.Animator;
 import android.animation.AnimatorListenerAdapter;
 import android.animation.ValueAnimator;
 import android.content.Context;
+import android.content.pm.ActivityInfo;
 import android.graphics.Bitmap;
 import android.support.annotation.AttrRes;
 import android.support.annotation.NonNull;
@@ -21,6 +22,7 @@ import android.widget.SeekBar;
 import android.widget.TextView;
 
 import ike.com.ikeplayer.R;
+import ike.com.ikeplayer.utils.ScreenRotateUtil;
 
 /**
  * author ike
@@ -47,6 +49,7 @@ public class IkePlayerController extends FrameLayout implements View.OnClickList
     private Animation enter_animation;
     private Animation out_animation;
     private boolean isSeekBarOntouch;//是否seekbar再被拖动,此时ll_controller_container不应该进行下落动画
+
     public IkePlayerController(@NonNull Context context) {
         this(context, null);
     }
@@ -60,6 +63,7 @@ public class IkePlayerController extends FrameLayout implements View.OnClickList
         this.context = context;
         view = View.inflate(context, R.layout.ike_player_view, this);
         initView();
+
     }
 
     private void initView() {
@@ -157,8 +161,10 @@ public class IkePlayerController extends FrameLayout implements View.OnClickList
                     if (out_animation != null) {
                         out_animation.cancel();
                     }
+                    if (IkePlayerManager.getInstance().current_state==IkePlayerManager.STATE_PLAYING){
+                        showSeekBarContainer();
+                    }
 
-                    showSeekBarContainer();
                 }
                 break;
             case MotionEvent.ACTION_UP:
@@ -229,7 +235,6 @@ public class IkePlayerController extends FrameLayout implements View.OnClickList
             if (isSeekBarOntouch){
                 return;
             }
-
             if (IkePlayerManager.getInstance().current_state == IkePlayerManager.STATE_PLAYING) {
                 hideSeekBarContainer();
             }
