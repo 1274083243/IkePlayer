@@ -26,6 +26,12 @@ public interface PlayerControllerEventListener {
      */
     void seekToPosition(int progress);
 
+    /**
+     * 退出小屏播放
+     */
+
+    void outSmallScreen();
+
 //    /**
 //     * 是否触碰进度条
 //     * @param isTouch

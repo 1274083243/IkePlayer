@@ -36,14 +36,13 @@ import tv.danmaku.ijk.media.player.IMediaPlayer;
 @RequiresApi(api = Build.VERSION_CODES.N)
 public class IkePlayer extends FrameLayout implements
         PlayerControllerEventListener,
-        IkePlayerListener,
-        TextureView.SurfaceTextureListener {
+        IkePlayerListener {
     private String Tag = "IkePlayer";
     private Context context;
     private IkeTextureView mTextureView;//视频播放控件
     private Surface mSurface;
-    private FrameLayout mainContainer;//播放控件以及播放器控制控件的容器
-    private IkePlayerController mPlayController;//播放器控制者
+    public FrameLayout mainContainer;//播放控件以及播放器控制控件的容器
+    public IkePlayerController mPlayController;//播放器控制者
     private AudioManager audioManager;
     private VideoModel videoModel;
     public boolean isFullScreen;//标记是否是全屏播放中
@@ -55,8 +54,20 @@ public class IkePlayer extends FrameLayout implements
     private long lastPlayPosition;
     private PlayerStateChangedListener stateListener;
     public boolean isSystemPause;//标记是否是由于activity的生命周期onpause方法引起的暂停，用以防止出现黑屏的现象
-    private boolean isFirst=true;//是否是第一次播放视频
-
+    private boolean isFirst = true;//是否是第一次播放视频
+    public boolean isSmallScreen;//是否是小屏幕播放
+    public boolean hasVideoPlay;//是否有视频在播放
+    /**
+     * 播放状态
+     */
+    public static final int STATE_PREPARING = 0;
+    public static final int STATE_PLAYING = 1;
+    public static final int STATE_ERROR = 2;
+    public static final int STATE_COMPLETE = 3;
+    public static final int STATE_PAUSE = 4;
+    public static final int STATE_IDLE = 5;
+    public int current_state = STATE_IDLE;
+    public int position;
 
     public IkePlayer(@NonNull Context context) {
         this(context, null);
@@ -69,63 +80,106 @@ public class IkePlayer extends FrameLayout implements
     public IkePlayer(@NonNull Context context, @Nullable AttributeSet attrs, @AttrRes int defStyleAttr) {
         super(context, attrs, defStyleAttr);
         this.context = context;
-        addTexture();
+        addVideoController();
         screenRotateUtil = new ScreenRotateUtil(getContext());
-        setBackgroundColor(Color.BLACK);
     }
 
-
     /**
-     * 添加视频播放控件
+     * 添加播放器控制控件
      */
-    private void addTexture() {
-        if (getChildCount() != 0) {
-            removeAllViews();
-        }
+    public void addVideoController() {
         FrameLayout.LayoutParams containerParams = new LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT);
         mainContainer = new FrameLayout(context);
         mainContainer.setLayoutParams(containerParams);
         if (mainContainer.getChildCount() != 0) {
             mainContainer.removeAllViews();
-        }
-        //添加播放控件
-        if (mTextureView == null) {
-            mTextureView = new IkeTextureView(context);
-            mTextureView.setSurfaceTextureListener(this);
-            FrameLayout.LayoutParams params = new LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT);
-            params.gravity = Gravity.CENTER;
-            mTextureView.setLayoutParams(params);
-            mainContainer.addView(mTextureView);
+            mainContainer.setBackgroundColor(Color.TRANSPARENT);
         }
         //添加播放器控制控件
         if (mPlayController == null) {
             mPlayController = new IkePlayerController(context);
+            mPlayController.setVisibility(VISIBLE);
+            mPlayController.iv_cover.setImageResource(R.mipmap.ic_launcher);
             FrameLayout.LayoutParams params = new LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT);
             mainContainer.addView(mPlayController, params);
             mPlayController.bindPlayer(this, this);
         }
+        mainContainer.setBackgroundColor(Color.BLACK);
+
         this.addView(mainContainer);
+    }
+
+    /**
+     * 添加视频播放控件
+     */
+    private void addTexture() {
+        //添加播放控件
+        if (mTextureView == null) {
+            mTextureView = new IkeTextureView(context);
+            FrameLayout.LayoutParams params = new LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT);
+            params.gravity = Gravity.CENTER;
+            mTextureView.setLayoutParams(params);
+        }
+        if (mainContainer.getChildAt(0) == mTextureView) {
+            mainContainer.removeView(mTextureView);
+        }
+        mainContainer.addView(mTextureView, 0);
+        mTextureView.setSurfaceTextureListener(new TextureView.SurfaceTextureListener() {
+            @Override
+            public void onSurfaceTextureAvailable(SurfaceTexture surface, int width, int height) {
+                Log.e(Tag, "onSurfaceTextureAvailable");
+                mSurface = new Surface(surface);
+                IkePlayerManager.getInstance().setDisPlay(mSurface);
+
+            }
+
+            @Override
+            public void onSurfaceTextureSizeChanged(SurfaceTexture surface, int width, int height) {
+            }
+
+            @Override
+            public boolean onSurfaceTextureDestroyed(SurfaceTexture surface) {
+                IkePlayerManager.getInstance().setDisPlay(null);
+                mSurface.release();
+                mSurface = null;
+                return false;
+            }
+
+            @Override
+            public void onSurfaceTextureUpdated(SurfaceTexture surface) {
+            }
+        });
+
+
     }
 
     /**
      * 准备播放视频
      */
     public IkePlayer prepareVideo() {
-        IkePlayerManager.getInstance().setListener(this);
+        //释放播放器资源
+        releaseRecource();
+        addTexture();
+        //绑定播放器
+        mPlayController.iv_cover.setVisibility(GONE);
+        IkePlayerManager.getInstance().setIkePlayer(IkePlayer.this);
+        IkePlayerManager.getInstance().setListener(IkePlayer.this);
         IkePlayerManager.getInstance().prepare(videoModel.speed, videoModel.path, videoModel.isLoop);
+        hasVideoPlay=true;
         return this;
 
     }
 
     @Override
     public void onPrepared(IMediaPlayer iMediaPlayer) {
+        current_state = STATE_PLAYING;
         this.mIMediaPlayer = iMediaPlayer;
         Date date = new Date(mIMediaPlayer.getDuration());
         mPlayController.tv_final_time.setText(dateFormat.format(date));
         updateProgressTask = new UpdateProgressTask();
         updateProgressTask.start();
-        mPlayController.UpDateUIApplyState(IkePlayerManager.getInstance().current_state);
-        if (isFirst){
+        mPlayController.UpDateUIApplyState(current_state);
+        if (isFirst) {
             mPlayController.showSeekBarContainer();
             postDelayed(new Runnable() {
                 @Override
@@ -133,8 +187,8 @@ public class IkePlayer extends FrameLayout implements
                     mPlayController.hideSeekBarContainer();
                 }
             }, 3000);
-            isFirst=false;
-        }else {
+            isFirst = false;
+        } else {
             postDelayed(new Runnable() {
                 @Override
                 public void run() {
@@ -152,7 +206,10 @@ public class IkePlayer extends FrameLayout implements
     public void onVideoSizeChanged(int width, int height) {
         if (width != 0 && height != 0) {
             mTextureView.requestLayout();
-            IkePlayerManager.getInstance().setDisPlay(mSurface);
+            if (mSurface != null) {
+                IkePlayerManager.getInstance().setDisPlay(mSurface);
+            }
+
         }
     }
 
@@ -170,8 +227,9 @@ public class IkePlayer extends FrameLayout implements
     @Override
     public void onVideoCancleOrComplete(boolean isComplete) {
         if (isComplete) {
+            current_state = STATE_COMPLETE;
             mPlayController.showSeekBarContainer();
-            mPlayController.UpDateUIApplyState(IkePlayerManager.getInstance().current_state);
+            mPlayController.UpDateUIApplyState(current_state);
             if (stateListener != null) {
                 stateListener.onCompletion();
             }
@@ -190,27 +248,11 @@ public class IkePlayer extends FrameLayout implements
     }
 
     @Override
-    public void onSurfaceTextureAvailable(SurfaceTexture surface, int width, int height) {
-        mSurface = new Surface(surface);
-        IkePlayerManager.getInstance().setDisPlay(mSurface);
-    }
-
-    @Override
-    public void onSurfaceTextureSizeChanged(SurfaceTexture surface, int width, int height) {
+    public void onError() {
+        current_state = STATE_ERROR;
 
     }
 
-    @Override
-    public boolean onSurfaceTextureDestroyed(SurfaceTexture surface) {
-        IkePlayerManager.getInstance().setDisPlay(null);
-        surface.release();
-        return false;
-    }
-
-    @Override
-    public void onSurfaceTextureUpdated(SurfaceTexture surface) {
-
-    }
 
     private ScreenRotateUtil screenRotateUtil;
 
@@ -224,7 +266,6 @@ public class IkePlayer extends FrameLayout implements
         screenRotateUtil.setListener(new OritationChangedListener() {
             @Override
             public void onScreenOritationChanged(int oritation) {
-                Log.e(Tag, "毁掉了:" + oritation);
                 IkePlayerUtils.getAppCompActivity(context).setRequestedOrientation(oritation);
 
             }
@@ -237,7 +278,7 @@ public class IkePlayer extends FrameLayout implements
         //查找windows层的父视图控件，并将mainContainer添加到视图中
         FrameLayout parentLayout = (FrameLayout) IkePlayerUtils.getAppCompActivity(context).findViewById(android.R.id.content);
         FrameLayout.LayoutParams params = new LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT);
-        parentLayout.setBackgroundColor(Color.BLACK);
+        // parentLayout.setBackgroundColor(Color.BLACK);
         params.gravity = Gravity.CENTER;
         parentLayout.addView(mainContainer, params);
         showCoverImage();
@@ -250,7 +291,7 @@ public class IkePlayer extends FrameLayout implements
      * 退出全屏
      */
     public void outFullScreen() {
-        if (!isFullScreen) {
+        if (!isFullScreen && !isSmallScreen) {
             return;
         }
         screenRotateUtil.setListener(null);
@@ -259,19 +300,36 @@ public class IkePlayer extends FrameLayout implements
         IkePlayerUtils.getAppCompActivity(context).setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_PORTRAIT);
         //查找windows层的父视图控件，并将mainContainer移除
         FrameLayout parentLayout = (FrameLayout) IkePlayerUtils.getAppCompActivity(context).findViewById(android.R.id.content);
-        parentLayout.setBackgroundColor(Color.TRANSPARENT);
+        // parentLayout.setBackgroundColor(Color.TRANSPARENT);
         parentLayout.removeView(mainContainer);
         FrameLayout.LayoutParams params = new LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT);
         this.addView(mainContainer, params);
         showCoverImage();
         mPlayController.btn_full.setImageResource(R.drawable.video_enlarge);
+        mPlayController.iv_out_small.setVisibility(GONE);
         isFullScreen = false;
+        isSmallScreen = false;
+    }
+
+    /**
+     * 小屏播放
+     */
+    public void goToSmallScreen() {
+        this.removeView(mainContainer);
+        FrameLayout parentLayout = (FrameLayout) IkePlayerUtils.getAppCompActivity(context).findViewById(android.R.id.content);
+        FrameLayout.LayoutParams params = new LayoutParams(getContext().getResources().getDisplayMetrics().widthPixels* 2/ 3, getContext().getResources().getDisplayMetrics().heightPixels / 3);
+        params.gravity = Gravity.RIGHT | Gravity.BOTTOM;
+        params.rightMargin = 20;
+        params.bottomMargin = 10;
+        mPlayController.iv_out_small.setVisibility(VISIBLE);
+        parentLayout.addView(mainContainer, params);
+        isSmallScreen = true;
     }
 
     Animation animation;
 
     private void showCoverImage() {
-        if (mPlayController.cover_bitmap != null && IkePlayerManager.getInstance().current_state == IkePlayerManager.STATE_PAUSE) {
+        if (mPlayController.cover_bitmap != null && current_state == STATE_PAUSE) {
             mPlayController.iv_cover.setImageBitmap(mPlayController.cover_bitmap);
             mPlayController.iv_cover.setVisibility(VISIBLE);
         }
@@ -279,16 +337,16 @@ public class IkePlayer extends FrameLayout implements
 
     @Override
     public void playOrPause() {
-        Log.e(Tag, "IkePlayerManager.getInstance().current_state:" + IkePlayerManager.getInstance().current_state);
-        switch (IkePlayerManager.getInstance().current_state) {
-            case IkePlayerManager.STATE_PAUSE:
+        switch (current_state) {
+            case STATE_PAUSE:
                 start();
                 break;
-            case IkePlayerManager.STATE_PLAYING:
+            case STATE_PLAYING:
                 pause();
                 break;
-            case IkePlayerManager.STATE_COMPLETE:
-            case IkePlayerManager.STATE_PREPARING:
+            case STATE_COMPLETE:
+            case STATE_PREPARING:
+            case STATE_IDLE:
                 prepareVideo();
                 break;
         }
@@ -300,11 +358,16 @@ public class IkePlayer extends FrameLayout implements
         mIMediaPlayer.seekTo(position);
     }
 
+    @Override
+    public void outSmallScreen() {
+        outFullScreen();
+    }
+
     /**
      * 生成视屏缩略图，用以填补视屏旋转后黑屏的问题
      */
     public void getCoverBitmap() {
-        if (IkePlayerManager.getInstance().current_state == IkePlayerManager.STATE_PAUSE) {
+        if (current_state == STATE_PAUSE) {
             //重新生成bitmap
             if (mTextureView != null && shouldGetNewCover()) {
                 mPlayController.cover_bitmap = mTextureView.getBitmap(mTextureView.getWidth(), mTextureView.getHeight());
@@ -351,8 +414,8 @@ public class IkePlayer extends FrameLayout implements
 
     public void start() {
         mIMediaPlayer.start();
-        IkePlayerManager.getInstance().current_state = IkePlayerManager.STATE_PLAYING;
-        mPlayController.UpDateUIApplyState(IkePlayerManager.getInstance().current_state);
+        current_state = STATE_PLAYING;
+        mPlayController.UpDateUIApplyState(current_state);
         mPlayController.hideSeekBarContainer();
         if (mPlayController.iv_cover.getVisibility() == VISIBLE) {
             if (animation == null) {
@@ -382,8 +445,8 @@ public class IkePlayer extends FrameLayout implements
 
     public void pause() {
         mIMediaPlayer.pause();
-        IkePlayerManager.getInstance().current_state = IkePlayerManager.STATE_PAUSE;
-        mPlayController.UpDateUIApplyState(IkePlayerManager.getInstance().current_state);
+        current_state = STATE_PAUSE;
+        mPlayController.UpDateUIApplyState(current_state);
         mPlayController.showSeekBarContainer();
         if (isSystemPause) {
             //防止暂停后出现黑屏的现象
@@ -398,12 +461,13 @@ public class IkePlayer extends FrameLayout implements
      */
     public void destroy() {
         if (mIMediaPlayer != null) {
-            mIMediaPlayer.release();
+            releaseRecource();
             mIMediaPlayer = null;
             if (mPlayController.cover_bitmap != null && !mPlayController.cover_bitmap.isRecycled()) {
                 mPlayController.cover_bitmap.recycle();
                 mPlayController.cover_bitmap = null;
             }
+            Log.e(Tag,"资源释放完毕");
 
         }
     }
@@ -429,5 +493,29 @@ public class IkePlayer extends FrameLayout implements
     public IkePlayer setStateListener(PlayerStateChangedListener stateListener) {
         this.stateListener = stateListener;
         return this;
+    }
+
+    /**
+     * 释放播放器资源
+     */
+    public void releaseRecource() {
+        IkePlayerManager.getInstance().release();
+        if (mTextureView != null) {
+            mTextureView.setSurfaceTextureListener(null);
+            mainContainer.removeView(mTextureView);
+            mTextureView = null;
+        }
+        if (mPlayController != null) {
+            if (mPlayController.cover_bitmap != null && !mPlayController.cover_bitmap.isRecycled()) {
+                mPlayController.cover_bitmap.recycle();
+                mPlayController.cover_bitmap = null;
+            }
+            mPlayController.reset();
+        }
+        current_state = IkePlayer.STATE_IDLE;
+    }
+
+    public void setPosition(int position) {
+        this.position = position;
     }
 }

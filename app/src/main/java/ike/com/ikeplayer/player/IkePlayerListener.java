@@ -39,6 +39,11 @@ public interface IkePlayerListener {
     void resumeProgressUpdate();
 
     /**
+     * 视频加载出错了
+     */
+    void onError();
+
+    /**
      * 暂停
      */
    // void videoPause();

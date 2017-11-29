@@ -1,5 +1,6 @@
 package ike.com.ikeplayer;
 
+import android.content.Intent;
 import android.os.Build;
 import android.support.annotation.RequiresApi;
 import android.support.v7.app.AppCompatActivity;
@@ -38,11 +39,29 @@ public class MainActivity extends AppCompatActivity {
         });
     }
 
+    /**
+     * 小屏幕播放
+     * @param view
+     */
+    @RequiresApi(api = Build.VERSION_CODES.N)
+    public void goSmallScreen(View view){
+        if (!mPlayer.isSmallScreen){
+            mPlayer.goToSmallScreen();
+        }else {
+            mPlayer.outFullScreen();
+        }
+
+
+    }
+
     @RequiresApi(api = Build.VERSION_CODES.N)
     @Override
     protected void onPause() {
-        mPlayer.isSystemPause=true;
-        mPlayer.pause();
+        if (mPlayer!=null){
+            mPlayer.isSystemPause=true;
+            mPlayer.pause();
+        }
+
         super.onPause();
     }
 
@@ -51,5 +70,12 @@ public class MainActivity extends AppCompatActivity {
     protected void onDestroy() {
         mPlayer.destroy();
         super.onDestroy();
+    }
+    @RequiresApi(api = Build.VERSION_CODES.N)
+    public void player_by_list(View view){
+        Intent intent=new Intent(this,ListPlayerActivity.class);
+        startActivity(intent);
+        mPlayer.destroy();
+        mPlayer=null;
     }
 }
